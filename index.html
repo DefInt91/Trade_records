@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高拋低吸・全功能戰情室 (v6.1)</title>
+        <!-- PWA 連結 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111827">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #111827;
+            --card-bg: #1F2937;
+            --text-primary: #F3F4F6;
+            --text-secondary: #9CA3AF;
+            --accent-gold: #FBBF24;
+            --accent-green: #34D399;
+            --accent-red: #F87171;
+            --accent-blue: #60A5FA;
+            --accent-purple: #A78BFA;
+            --border-color: #374151;
+        }
+
+        * { box-sizing: border-box; } /* 確保寬度計算正確 */
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 15px; /* 手機版邊距縮小 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent; /* 移除手機點擊藍框 */
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        h2 { font-size: 1.5rem; margin: 10px 0 20px 0; }
+
+        /* --- 頂部控制列 --- */
+        .top-bar {
+            background-color: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap; /* 允許換行 */
+            gap: 15px;
+        }
+
+        .role-manager, .data-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .role-label { color: var(--accent-purple); font-weight: bold; font-size: 14px; white-space: nowrap; }
+        
+        .role-select { 
+            background-color: #374151; color: white; border: 1px solid var(--border-color); 
+            padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px;
+            max-width: 150px; /* 防止手機上選單太寬 */
+        }
+
+        .btn-sm {
+            border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: 0.2s;
+            white-space: nowrap;
+        }
+        .btn-purple { background-color: var(--accent-purple); color: #111; font-weight: bold; }
+        .btn-gray { background-color: #4B5563; color: white; }
+        .btn-outline-red { background: transparent; border: 1px solid var(--accent-red); color: var(--accent-red); }
+        .btn-outline-blue { background: transparent; border: 1px solid var(--accent-blue); color: var(--accent-blue); }
+
+        /* --- 儀表板 (Grid 自動排版) --- */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* 手機上允許更窄的卡片 */
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .card h3 {
+            margin: 0 0 5px 0;
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .card .value { font-size: 22px; font-weight: bold; word-break: break-all; }
+        .val-gold { color: var(--accent-gold); }
+        .val-green { color: var(--accent-green); }
+        .val-red { color: var(--accent-red); }
+        .val-white { color: var(--text-primary); }
+
+        /* --- 圖表 --- */
+        .chart-container {
+            background-color: var(--card-bg);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            height: 250px; /* 手機上稍微矮一點 */
+            position: relative;
+        }
+
+        /* --- 輸入區 --- */
+        .input-wrapper {
+            background-color: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--accent-gold);
+        }
+
+        .input-mode-tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .mode-tab {
+            flex: 1; /* 手機上平均分配寬度 */
+            text-align: center;
+            padding: 10px 0;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-weight: bold;
+            border-bottom: 2px solid transparent;
+            font-size: 14px;
+        }
+        .mode-tab.active {
+            color: var(--accent-gold);
+            border-bottom: 2px solid var(--accent-gold);
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); /* 自適應寬度 */
+            gap: 12px;
+            align-items: end;
+        }
+
+        .form-control { display: flex; flex-direction: column; }
+        label { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+        input, select {
+            background-color: #374151;
+            border: 1px solid #4B5563;
+            color: white;
+            padding: 12px; /* 加大點擊範圍 */
+            border-radius: 6px;
+            font-size: 16px; /* 防止 iOS 自動縮放 */
+            width: 100%;
+        }
+        #in-leverage { border-color: var(--accent-blue); color: var(--accent-blue); font-weight: bold; }
+
+        button.btn-add {
+            background-color: var(--accent-gold);
+            color: black;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%; /* 手機上按鈕滿版 */
+            margin-top: 5px;
+        }
+
+        /* --- 表格優化 (關鍵：橫向捲動) --- */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto; /* 允許左右滑動 */
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px; /* 強制表格最小寬度，確保不擠壓，觸發捲動 */
+        }
+
+        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid var(--border-color); }
+        th { background-color: #111827; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; white-space: nowrap; }
+        td { font-size: 14px; white-space: nowrap; } /* 防止文字折行 */
+        td:first-child, th:first-child { text-align: left; }
+
+        .type-buy { color: var(--accent-green); font-weight: bold; }
+        .type-sell { color: var(--accent-red); font-weight: bold; }
+        .leverage-tag { color: var(--accent-blue); background: rgba(96, 165, 250, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        .btn-delete {
+            background-color: transparent;
+            border: 1px solid #EF4444;
+            color: #EF4444;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .empty-hint { text-align: center; color: var(--text-secondary); font-style: italic; padding: 20px; }
+        #file-input { display: none; }
+
+        /* 手機版特別調整 (Media Query) */
+        @media (max-width: 600px) {
+            .top-bar { flex-direction: column; align-items: stretch; }
+            .role-manager { justify-content: space-between; }
+            .data-controls { justify-content: space-between; margin-top: 10px; }
+            .btn-sm { flex: 1; text-align: center; }
+            
+            /* 輸入框在手機上改為兩欄一列 */
+            .input-group { grid-template-columns: 1fr 1fr; }
+            /* "新增按鈕" 獨佔一行 */
+            button.btn-add { grid-column: span 2; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center; margin-bottom: 20px;">🛡️ 高拋低吸・戰情室 v6.0</h2>
+
+    <!-- 頂部控制列 -->
+    <div class="top-bar">
+        <div class="role-manager">
+            <span class="role-label">角色：</span>
+            <select id="role-select" class="role-select" onchange="switchRole(this.value)"></select>
+            <button class="btn-sm btn-purple" onclick="createNewRole()">+ 新增</button>
+            <button class="btn-sm btn-gray" onclick="renameCurrentRole()">✎</button>
+            <button class="btn-sm btn-outline-red" onclick="deleteCurrentRole()">🗑️</button>
+        </div>
+        <div class="data-controls">
+            <button class="btn-sm btn-outline-blue" onclick="exportData()">⬇️ 匯出</button>
+            <button class="btn-sm btn-outline-blue" onclick="triggerImport()">⬆️ 匯入</button>
+            <input type="file" id="file-input" accept=".json" onchange="importData(event)">
+        </div>
+    </div>
+
+    <!-- 儀表板 -->
+    <div class="dashboard">
+        <div class="card">
+            <h3>目前持倉均價</h3>
+            <div class="value val-gold" id="disp-avg-price">0.00</div>
+            <div style="font-size: 12px; color: #6B7280; margin-top: 5px;">目標：持續降低</div>
+        </div>
+        <div class="card">
+            <h3>剩餘持倉數量</h3>
+            <div class="value val-white" id="disp-holdings">0.0000</div>
+        </div>
+        <div class="card">
+            <h3>總手續費磨損</h3>
+            <div class="value val-red" id="disp-total-fees">0.00</div>
+            <div style="font-size: 12px; color: #6B7280; margin-top: 5px;">累計支出</div>
+        </div>
+        <div class="card">
+            <h3>淨保證金流動</h3>
+            <div class="value val-green" id="disp-margin-flow">0.00</div>
+            <div style="font-size: 12px; color: #6B7280; margin-top: 5px;">本金佔用/釋放 (不含費)</div>
+        </div>
+    </div>
+
+    <!-- 圖表 -->
+    <div class="chart-container">
+        <canvas id="avgPriceChart"></canvas>
+    </div>
+
+    <!-- 輸入區 -->
+    <div class="input-wrapper">
+        <div class="input-mode-tabs">
+            <div class="mode-tab active" id="tab-qty" onclick="setMode('qty')">按數量 (Coin)</div>
+            <div class="mode-tab" id="tab-val" onclick="setMode('val')">按價值 (USDT)</div>
+        </div>
+
+        <div class="input-group">
+            <div class="form-control">
+                <label>動作</label>
+                <select id="in-type">
+                    <option value="buy">🟢 買入 (建倉)</option>
+                    <option value="sell">🔴 賣出 (減倉)</option>
+                </select>
+            </div>
+            <div class="form-control">
+                <label>槓桿倍數 (x)</label>
+                <input type="number" id="in-leverage" value="5" placeholder="5">
+            </div>
+            <div class="form-control">
+                <label>成交價格</label>
+                <input type="number" id="in-price" placeholder="如: 90000">
+            </div>
+            
+            <div class="form-control">
+                <label id="lbl-amount">數量 (單位)</label>
+                <input type="number" id="in-amount" placeholder="如: 0.002" step="any">
+            </div>
+
+            <div class="form-control">
+                <label>手續費 (U)</label>
+                <input type="number" id="in-fee" placeholder="0.04" value="0">
+            </div>
+            <button class="btn-add" onclick="addTransaction()">新增紀錄</button>
+        </div>
+        <div id="val-mode-hint" style="display:none; color: #6B7280; font-size: 12px; margin-top: 10px; text-align: right;">
+            💡 系統將以「總價值 ÷ 價格」自動計算成交數量
+        </div>
+    </div>
+    <div class="table-responsive">
+    <!-- 表格 -->
+    <table>
+        <thead>
+            <tr>
+                <th>次序</th>
+                <th>動作</th>
+                <th>槓桿</th>
+                <th>價格</th>
+                <th>數量</th>
+                <th>手續費 (U)</th>
+                <th>保證金變動 (U)</th>
+                <th>交易後均價</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="log-table-body"></tbody>
+    </table>
+    </div>
+    
+    <div id="empty-msg" class="empty-hint" style="display:none;">
+        此角色尚未有交易紀錄，請上方新增第一筆買入。
+    </div>
+</div>
+
+<script>
+    // --- PWA Service Worker 註冊 ---
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('PWA Service Worker 註冊成功', reg))
+            .catch(err => console.log('PWA 註冊失敗', err));
+    }
+    // --- 全域變數設定 ---
+    const STORAGE_KEY = 'crypto_t_strategy_v6';
+    const OLD_STORAGE_KEY_V5 = 'crypto_t_strategy_v5_roles';
+    
+    // 預設資料結構
+    const DEFAULT_DATA = {
+        currentRoleId: 'default',
+        roles: { 
+            'default': { name: '預設角色', transactions: [] } 
+        }
+    };
+
+    let appData = JSON.parse(JSON.stringify(DEFAULT_DATA)); // 深度複製
+    let chartInstance = null;
+    let inputMode = 'qty';
+
+    // --- 初始化 (加入錯誤捕捉) ---
+    window.onload = function() {
+        try {
+            loadData();
+            // 確保資料結構完整，防止按鈕失效
+            validateDataIntegrity();
+            renderRoleSelector();
+            calculateAndRender();
+            setMode('qty');
+        } catch (e) {
+            console.error("初始化失敗:", e);
+            alert("系統偵測到資料異常，已自動重置為初始狀態以恢復功能。");
+            resetToDefault();
+        }
+    };
+
+    // --- 資料完整性檢查 (修復按鈕失效的關鍵) ---
+    function validateDataIntegrity() {
+        if (!appData || typeof appData !== 'object') {
+            appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        }
+        if (!appData.roles || typeof appData.roles !== 'object') {
+            appData.roles = { 'default': { name: '預設角色', transactions: [] } };
+        }
+        if (!appData.currentRoleId || !appData.roles[appData.currentRoleId]) {
+            const keys = Object.keys(appData.roles);
+            if (keys.length > 0) {
+                appData.currentRoleId = keys[0];
+            } else {
+                appData.roles['default'] = { name: '預設角色', transactions: [] };
+                appData.currentRoleId = 'default';
+            }
+        }
+    }
+
+    function resetToDefault() {
+        appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        saveData();
+        location.reload();
+    }
+
+    // --- 資料存取 ---
+    function loadData() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                appData = JSON.parse(stored);
+            } else {
+                // 嘗試從 v5 遷移
+                const v5 = localStorage.getItem(OLD_STORAGE_KEY_V5);
+                if (v5) {
+                    const parsedV5 = JSON.parse(v5);
+                    if (parsedV5 && parsedV5.roles) {
+                        appData = parsedV5;
+                        console.log("成功遷移 v5 資料");
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("讀取資料錯誤，將使用預設值:", e);
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+
+    // --- 角色管理功能 (修復版) ---
+    function renderRoleSelector() {
+        const select = document.getElementById('role-select');
+        if (!select) return;
+        select.innerHTML = '';
+        
+        Object.keys(appData.roles).forEach(id => {
+            const role = appData.roles[id];
+            const option = document.createElement('option');
+            option.value = id;
+            option.text = role.name;
+            option.selected = (id === appData.currentRoleId);
+            select.appendChild(option);
+        });
+    }
+
+    function switchRole(id) {
+        if (!appData.roles[id]) return;
+        appData.currentRoleId = id;
+        saveData();
+        calculateAndRender();
+    }
+
+    function createNewRole() {
+        try {
+            const name = prompt("請輸入新角色名稱 (例如: BTC 策略):");
+            if (name && name.trim() !== "") {
+                const newId = 'role_' + Date.now();
+                appData.roles[newId] = { name: name.trim(), transactions: [] };
+                appData.currentRoleId = newId;
+                saveData();
+                renderRoleSelector();
+                calculateAndRender();
+            }
+        } catch (e) {
+            alert("新增失敗，請重新整理頁面再試。");
+        }
+    }
+
+    function renameCurrentRole() {
+        try {
+            const id = appData.currentRoleId;
+            if (!appData.roles[id]) return;
+            
+            const currentName = appData.roles[id].name;
+            const name = prompt("更名為:", currentName);
+            if (name && name.trim()) {
+                appData.roles[id].name = name.trim();
+                saveData();
+                renderRoleSelector();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function deleteCurrentRole() {
+        try {
+            const id = appData.currentRoleId;
+            if (Object.keys(appData.roles).length <= 1) {
+                return alert("無法刪除：系統至少需要保留一個角色。");
+            }
+            if (!appData.roles[id]) return;
+
+            if (confirm(`確定要刪除角色「${appData.roles[id].name}」及其所有數據嗎？`)) {
+                delete appData.roles[id];
+                appData.currentRoleId = Object.keys(appData.roles)[0];
+                saveData();
+                renderRoleSelector();
+                calculateAndRender();
+            }
+        } catch (e) {
+            console.error(e);
+            alert("刪除失敗，正嘗試修復資料...");
+            validateDataIntegrity();
+            renderRoleSelector();
+        }
+    }
+
+    // --- 匯出匯入功能 ---
+    function exportData() {
+        const dataStr = JSON.stringify(appData, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const date = new Date().toISOString().split('T')[0];
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `交易戰情室備份_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function triggerImport() {
+        document.getElementById('file-input').click();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (importedData.roles && importedData.currentRoleId) {
+                    if(confirm('確定要匯入此檔案嗎？這將覆蓋目前的資料。')) {
+                        appData = importedData;
+                        saveData();
+                        location.reload(); 
+                    }
+                } else {
+                    alert('檔案格式錯誤，缺少必要欄位。');
+                }
+            } catch (err) {
+                alert('匯入失敗：檔案可能已損壞。');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
+    // --- 下單模式切換 ---
+    function setMode(mode) {
+        inputMode = mode;
+        const lbl = document.getElementById('lbl-amount');
+        const inp = document.getElementById('in-amount');
+        const hint = document.getElementById('val-mode-hint');
+        
+        document.getElementById('tab-qty').className = mode === 'qty' ? 'mode-tab active' : 'mode-tab';
+        document.getElementById('tab-val').className = mode === 'val' ? 'mode-tab active' : 'mode-tab';
+
+        if (mode === 'qty') {
+            lbl.innerText = "數量 (Coin)";
+            inp.placeholder = "如: 0.002";
+            if(hint) hint.style.display = 'none';
+        } else {
+            lbl.innerText = "倉位總價值 (USDT)";
+            inp.placeholder = "如: 500";
+            if(hint) hint.style.display = 'block';
+        }
+    }
+
+    // --- 交易邏輯 ---
+    function getCurrentTxs() {
+        if (!appData.roles[appData.currentRoleId]) return [];
+        return appData.roles[appData.currentRoleId].transactions;
+    }
+
+    function addTransaction() {
+        try {
+            const type = document.getElementById('in-type').value;
+            const leverage = parseFloat(document.getElementById('in-leverage').value) || 1;
+            const price = parseFloat(document.getElementById('in-price').value);
+            let amountInput = parseFloat(document.getElementById('in-amount').value);
+            const fee = parseFloat(document.getElementById('in-fee').value) || 0;
+
+            if (!price || !amountInput) { 
+                alert("請輸入價格和數量/金額！"); 
+                return; 
+            }
+
+            let finalQty = 0;
+            if (inputMode === 'val') {
+                finalQty = amountInput / price;
+            } else {
+                finalQty = amountInput;
+            }
+
+            // 確保 txs 是陣列
+            if (!Array.isArray(appData.roles[appData.currentRoleId].transactions)) {
+                appData.roles[appData.currentRoleId].transactions = [];
+            }
+            const txs = appData.roles[appData.currentRoleId].transactions;
+
+            if (txs.length === 0 && type === 'sell') {
+                if(!confirm("確定第一筆是賣出？通常第一筆應為買入建倉。")) return;
+            }
+
+            const newTx = {
+                id: Date.now(),
+                type: type,
+                leverage: leverage,
+                price: price,
+                qty: finalQty,
+                fee: fee,
+                timestamp: Date.now()
+            };
+
+            txs.push(newTx);
+            saveData();
+            
+            // 清空輸入
+            document.getElementById('in-price').value = '';
+            document.getElementById('in-amount').value = '';
+            
+            calculateAndRender();
+        } catch (e) {
+            console.error(e);
+            alert("新增失敗，請檢查輸入數值是否正確。");
+        }
+    }
+
+    function deleteTransaction(id) {
+        if(confirm('確定刪除此紀錄？')) {
+            const role = appData.roles[appData.currentRoleId];
+            role.transactions = role.transactions.filter(t => t.id !== id);
+            saveData();
+            calculateAndRender();
+        }
+    }
+
+    // --- 計算與渲染 ---
+    function calculateAndRender() {
+        const txs = getCurrentTxs();
+        const tbody = document.getElementById('log-table-body');
+        const emptyMsg = document.getElementById('empty-msg');
+        
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (!txs || txs.length === 0) {
+            if(emptyMsg) emptyMsg.style.display = 'block';
+            updateDashboard(0, 0, 0, 0);
+            updateChart(['起始'], [0]);
+            return;
+        } else {
+            if(emptyMsg) emptyMsg.style.display = 'none';
+        }
+
+        let currentTotalNotional = 0;
+        let currentHoldings = 0;
+        let netMarginFlow = 0;
+        let totalFees = 0;
+
+        let chartLabels = ['起始'];
+        let chartData = [0];
+
+        txs.forEach((tx, index) => {
+            let marginChange = 0;
+            let typeText = '';
+            let rowClass = '';
+            
+            const marginImpact = (tx.price * tx.qty) / tx.leverage;
+
+            if (tx.type === 'buy') {
+                currentTotalNotional += tx.price * tx.qty;
+                currentHoldings += tx.qty;
+                marginChange = -marginImpact;
+                netMarginFlow += marginChange;
+                typeText = '🟢 買入';
+                rowClass = 'type-buy';
+            } else if (tx.type === 'sell') {
+                const prevAvg = currentHoldings > 0 ? currentTotalNotional / currentHoldings : 0;
+                const notionalReduced = prevAvg * tx.qty; 
+                currentTotalNotional -= notionalReduced;
+                currentHoldings -= tx.qty;
+                marginChange = +marginImpact;
+                netMarginFlow += marginChange;
+                typeText = '🔴 賣出';
+                rowClass = 'type-sell';
+            }
+            
+            totalFees += tx.fee;
+            const avgPrice = currentHoldings > 0.0000001 ? (currentTotalNotional / currentHoldings) : 0;
+            
+            chartLabels.push(`#${index + 1}`);
+            chartData.push(avgPrice);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td class="${rowClass}">${typeText}</td>
+                <td><span class="leverage-tag">${tx.leverage}x</span></td>
+                <td>${tx.price.toLocaleString()}</td>
+                <td>${tx.qty.toFixed(6)}</td>
+                <td style="color: #F87171">-${tx.fee.toFixed(4)}</td>
+                <td style="color: ${marginChange >= 0 ? '#34D399' : '#F87171'}">
+                    ${marginChange >= 0 ? '+' : ''}${marginChange.toFixed(2)}
+                </td>
+                <td style="color: #FBBF24; font-weight: bold;">${avgPrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+                <td><button class="btn-delete" onclick="deleteTransaction(${tx.id})">刪除</button></td>
+            `;
+            tbody.prepend(tr); 
+        });
+
+        const finalAvg = currentHoldings > 0.0000001 ? (currentTotalNotional / currentHoldings) : 0;
+        updateDashboard(finalAvg, currentHoldings, totalFees, netMarginFlow);
+        updateChart(chartLabels, chartData);
+    }
+
+    function updateDashboard(avg, holdings, fees, marginFlow) {
+        document.getElementById('disp-avg-price').innerText = avg.toLocaleString(undefined, {maximumFractionDigits: 2});
+        document.getElementById('disp-holdings').innerText = holdings.toFixed(4);
+        document.getElementById('disp-total-fees').innerText = fees.toFixed(2);
+        
+        const flowElem = document.getElementById('disp-margin-flow');
+        flowElem.innerText = (marginFlow >= 0 ? '+' : '') + marginFlow.toFixed(2);
+        flowElem.style.color = marginFlow >= 0 ? '#34D399' : '#F87171';
+    }
+
+    function updateChart(labels, data) {
+        const ctx = document.getElementById('avgPriceChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(167, 139, 250, 0.2)');
+        gradient.addColorStop(1, 'rgba(167, 139, 250, 0)');
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '均價',
+                    data: data,
+                    borderColor: '#FBBF24',
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#FBBF24',
+                    pointRadius: 4,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { grid: { color: '#374151' }, ticks: { color: '#9CA3AF' } },
+                    x: { grid: { display: false }, ticks: { color: '#9CA3AF' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
